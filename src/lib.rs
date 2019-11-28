@@ -1,0 +1,103 @@
+use itertools::kmerge;
+use rayon::{join, ThreadPoolBuilder, ThreadPool};
+use rayon::prelude::*;
+
+
+pub fn merge_twoway( input: &mut Vec<u64>){
+    let checksum: u64 = input.iter().sum();
+    //let (_, log) = pool.logging_install(|| {
+       let mut buffer: Vec<u64> = std::iter::repeat_with(Default::default)
+        .take(input.len())
+        .collect();
+        let mid = input.len() / 2;
+
+        let (input1, input3) = input.split_at_mut(mid);
+        let (buffer1, buffer2) = buffer.split_at_mut(mid);
+       
+        join(
+            || {
+                let (input1, input2) = input1.split_at_mut(mid / 2);
+                join(
+                    || input1.sort(),
+                    || input2.sort()
+                );
+                buffer1.iter_mut().
+                    zip(kmerge(vec![input1.iter(), input2.iter()]))
+                    .for_each(|(o, i)| *o = *i);
+                        
+
+                }
+            ,
+            ||{ 
+                let (input3, input4) = input3.split_at_mut(mid / 2);
+                join(
+                    || input3.sort(),
+                    || input4.sort()
+                );
+                buffer2.iter_mut().
+                    zip(kmerge(vec![input3.iter(), input4.iter()]))
+                    .for_each(|(o, i)| *o = *i);
+            }
+        );
+     input 
+            .iter_mut()
+            .zip(kmerge(vec![buffer1.iter(), buffer2.iter()]))
+            .for_each(|(o, i)| *o = *i);
+
+
+    //log.save_svg("merge_sort.svg").expect("failed saving svg");
+    assert_eq!(checksum, input.iter().sum::<u64>());
+    assert!(input.windows(2).all(|w| w[0] <= w[1]));
+
+
+}
+
+
+/// pre-condition: we need an even number of levels
+/// and not more than log(n) levels
+pub fn merge_threeway(input: &mut [u64]) {
+
+    let checksum: u64 = input.iter().sum();
+    //let (_, log) = pool.logging_install(|| {
+    let mut buffer: Vec<u64> = std::iter::repeat_with(Default::default)
+        .take(input.len())
+        .collect();
+    let third = input.len() / 3;
+
+    let (input1, input2) = input.split_at_mut(third);
+    let (input2, input3) = input2.split_at_mut(third);
+   
+    join(
+        || join(
+            || input1.sort(),
+            || input2.sort()
+        ),
+        || input3.sort(),
+    );
+  buffer 
+        .iter_mut()
+        .zip(kmerge(vec![input1.iter(), input2.iter(), input3.iter()]))
+        .for_each(|(o, i)| *o = *i);
+    input
+        .iter_mut()
+        .zip(buffer)
+        .for_each(|(o, i)| *o = i);
+
+
+    assert_eq!(checksum, input.iter().sum::<u64>());
+    assert!(input.windows(2).all(|w| w[0] <= w[1]));
+}
+/*
+fn main(){
+let pool = ThreadPoolBuilder::new()
+        .num_threads(3)
+        .build()
+        .expect("failed creating pool");
+
+    let mut v: Vec<u64> = std::iter::repeat_with(rand::random).take(N).collect();
+    sort(&pool, &mut v);
+}
+
+*/
+
+
