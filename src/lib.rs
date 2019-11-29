@@ -1,9 +1,10 @@
-use itertools::kmerge;
+use itertools::{kmerge, merge};
+use itertools::Itertools;
 use rayon::{join, ThreadPoolBuilder, ThreadPool};
 use rayon::prelude::*;
 
 
-pub fn merge_twoway( input: &mut Vec<u64>){
+pub fn sort_twoway( input: &mut Vec<u64>){
     let checksum: u64 = input.iter().sum();
     //let (_, log) = pool.logging_install(|| {
        let mut buffer: Vec<u64> = std::iter::repeat_with(Default::default)
@@ -55,7 +56,7 @@ pub fn merge_twoway( input: &mut Vec<u64>){
 
 /// pre-condition: we need an even number of levels
 /// and not more than log(n) levels
-pub fn merge_threeway(input: &mut [u64]) {
+pub fn sort_threeway(input: &mut [u64]) {
 
     let checksum: u64 = input.iter().sum();
     //let (_, log) = pool.logging_install(|| {
@@ -100,4 +101,51 @@ let pool = ThreadPoolBuilder::new()
 
 */
 
+pub fn parallel_merge_n(input: &mut [u64], buffer: &mut[u64], n: usize, level: u64) {
+    if level == 0 {return;}
 
+    //let (_, log) = pool.logging_install(|| {
+
+    let chunksize = input.len() / n;
+
+    
+    assert!(input.len() % chunksize == 0);
+    let mut inputs : Vec<&mut [u64]>= input.chunks_mut(chunksize).collect();
+    let buffers : Vec<&mut [u64]>= buffer.chunks_mut(chunksize).collect();
+
+    inputs.par_iter_mut().zip(buffers).
+         for_each(|(i, b)|{
+             parallel_merge_n(b, i, n, level - 1);
+     });
+    if n != 2 {
+      buffer
+        .iter_mut()
+        .zip(kmerge(inputs))
+        .for_each(|(o, i)| *o = *i);
+    }
+    else{
+        buffer.iter_mut()
+            .zip(inputs[0].iter().merge(inputs[1].iter()))
+            .for_each(|(o,i)| *o = *i);
+    }
+}
+pub fn merge_n(input: &mut [u64], buffer: &mut[u64], n: usize) {
+
+    let chunksize = input.len() / n;
+    
+    // assert!(input.len() % chunksize == 0);
+    let inputs : Vec<&mut [u64]>= input.chunks_mut(chunksize).collect();
+
+    if n != 2 {
+      buffer
+        .iter_mut()
+        .zip(kmerge(inputs))
+        .for_each(|(o, i)| *o = *i);
+    }
+    else{
+        buffer.iter_mut()
+            .zip(inputs[0].iter().merge(inputs[1].iter()))
+            .for_each(|(o,i)| *o = *i);
+    }
+    input.iter_mut().zip(buffer).for_each(|(o,i)| *o = *i);
+}

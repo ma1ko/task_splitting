@@ -14,5 +14,6 @@ rand = "*"
 criterion = "*"
 
 [[bench]]
-name = "threeway"
+# name = "threeway"
+name = "merge"
 harness = false
