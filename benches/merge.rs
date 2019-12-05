@@ -43,7 +43,7 @@ fn parallel_merge_n_bench(c: &mut Criterion) {
         .collect();
     let checksum: u64 = v.iter().sum();
     let mut group = c.benchmark_group("parallel_merge_n");
-    for size in [1, 2, 3, 4, 5, 6, 7, 8].iter() {
+    for size in [2, 3, 4, 5, 6, 7, 8].iter() {
         let levels = (split as f64).log(*size as f64).ceil() as u64;
         println!("Need {} recursive splits for {}", levels, size);
         group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
@@ -81,7 +81,7 @@ fn merge_kmerge(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, merge_kmerge);
-// criterion_group!(benches, merge_n_bench, parallel_merge_n_bench);
+//criterion_group!(benches, merge_kmerge);
+criterion_group!(benches, parallel_merge_n_bench);
 // criterion_group!(benches, parallel_merge_n_bench, merge_n_bench);
 criterion_main!(benches);

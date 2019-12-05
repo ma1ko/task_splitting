@@ -71,7 +71,7 @@ pub fn sort_threeway(input: &mut [u64]) {
 
 pub fn parallel_merge_n(input: &mut [u64], buffer: &mut [u64], n: usize, level: u64) {
     if level == 0 {
-        input.sort();
+        // input.sort();
         return;
     }
 
