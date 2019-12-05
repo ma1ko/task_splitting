@@ -102,20 +102,22 @@ let pool = ThreadPoolBuilder::new()
 */
 
 pub fn parallel_merge_n(input: &mut [u64], buffer: &mut[u64], n: usize, level: u64) {
-    if level == 0 {return;}
+    if level == 0 {
+        input.sort();
+        return;
+    }
 
-    //let (_, log) = pool.logging_install(|| {
-
-    let chunksize = input.len() / n;
-
+    let mut chunksize = input.len() / n;
+    if chunksize == 0 {println!("Damn! {} {} {}", input.len(), n, level);}
     
-    assert!(input.len() % chunksize == 0);
+    // assert!(input.len() % chunksize == 0); Need a solution for that
+    if input.len() % chunksize != 0 { chunksize  += 1;};
     let mut inputs : Vec<&mut [u64]>= input.chunks_mut(chunksize).collect();
     let buffers : Vec<&mut [u64]>= buffer.chunks_mut(chunksize).collect();
 
     inputs.par_iter_mut().zip(buffers).
          for_each(|(i, b)|{
-             parallel_merge_n(b, i, n, level - 1);
+             parallel_merge_n(i, b , n, level - 1);
      });
     if n != 2 {
       buffer
@@ -123,11 +125,12 @@ pub fn parallel_merge_n(input: &mut [u64], buffer: &mut[u64], n: usize, level: u
         .zip(kmerge(inputs))
         .for_each(|(o, i)| *o = *i);
     }
-    else{
+    else{ // user "normal" merge for two parts
         buffer.iter_mut()
             .zip(inputs[0].iter().merge(inputs[1].iter()))
             .for_each(|(o,i)| *o = *i);
     }
+    input.iter_mut().zip(buffer).for_each(|(o,i)| *o = *i); // write back
 }
 pub fn merge_n(input: &mut [u64], buffer: &mut[u64], n: usize) {
 
