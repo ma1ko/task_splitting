@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use itertools::{kmerge, merge};
 use rayon::prelude::*;
-use rayon::{join, ThreadPool, ThreadPoolBuilder};
+use rayon::{join, join_context, ThreadPool, ThreadPoolBuilder};
 
 pub fn sort_twoway(input: &mut Vec<u64>) {
     let checksum: u64 = input.iter().sum();
@@ -42,8 +42,6 @@ pub fn sort_twoway(input: &mut Vec<u64>) {
     assert!(input.windows(2).all(|w| w[0] <= w[1]));
 }
 
-/// pre-condition: we need an even number of levels
-/// and not more than log(n) levels
 pub fn sort_threeway(input: &mut [u64]) {
     let checksum: u64 = input.iter().sum();
     //let (_, log) = pool.logging_install(|| {
@@ -70,8 +68,13 @@ pub fn sort_threeway(input: &mut [u64]) {
 }
 
 pub fn parallel_merge_n(input: &mut [u64], buffer: &mut [u64], n: usize, level: u64) {
+    /*
     if level == 0 {
         // input.sort();
+        return;
+    }
+    */
+    if input.len() == 1 {
         return;
     }
 
@@ -123,7 +126,6 @@ pub fn merge_n(input: &mut [u64], buffer: &mut [u64], n: usize) {
 pub fn merge_2(input: &mut [u64], buffer: &mut [u64]) {
     let chunksize = input.len() / 2;
 
-    // assert!(input.len() % chunksize == 0);
     let inputs: Vec<&mut [u64]> = input.chunks_mut(chunksize).collect();
 
     buffer
@@ -132,4 +134,62 @@ pub fn merge_2(input: &mut [u64], buffer: &mut [u64]) {
         .for_each(|(o, i)| *o = *i);
 
     input.iter_mut().zip(buffer).for_each(|(o, i)| *o = *i);
+}
+
+pub fn mergesort_n(input: &mut [u64], buffer: &mut [u64], split: usize) {
+    if input.len() == 0 || input.len() == 1 {
+        // those are sorted by default
+        return;
+    }
+
+    let mut chunksize = input.len() / split;
+
+    if chunksize == 0 || input.len() % split != 0 {
+        // if we have less elements than tasks (chunsize == 0)
+        // just use a few less tasks
+        // if we can't evently divide input on tasks, we give the first tasks a bit more
+        chunksize = chunksize + 1;
+    }
+
+    let mut inputs: Vec<&mut [u64]> = input.chunks_mut(chunksize).collect();
+    let buffers: Vec<&mut [u64]> = buffer.chunks_mut(chunksize).collect();
+    inputs.iter_mut().zip(buffers).for_each(|(i, b)| {
+        mergesort_n(i, b, split);
+    });
+    buffer
+        .iter_mut()
+        .zip(kmerge(inputs))
+        .for_each(|(o, i)| *o = *i);
+    input.iter_mut().zip(buffer).for_each(|(o, i)| *o = *i); // write back
+}
+
+pub fn mergesort_2(input: &mut [u64], buffer: &mut [u64]) {
+    if input.len() == 0 || input.len() == 1 {
+        // those are sorted by default
+        return;
+    }
+    let (input1, input2) = input.split_at_mut(input.len() / 2);
+    let (buffer1, buffer2) = buffer.split_at_mut(buffer.len() / 2);
+    mergesort_2(input1, buffer1);
+    mergesort_2(input2, buffer2);
+    buffer
+        .iter_mut()
+        .zip(input1.iter().merge(input2.iter()))
+        .for_each(|(o, i)| *o = *i);
+    input.iter_mut().zip(buffer).for_each(|(o, i)| *o = *i); // write back
+}
+pub fn mergesort_2_stop(input: &mut [u64], buffer: &mut [u64]) {
+    if input.len() <= 5000 {
+        input.sort();
+        return;
+    }
+    let (input1, input2) = input.split_at_mut(input.len() / 2);
+    let (buffer1, buffer2) = buffer.split_at_mut(buffer.len() / 2);
+    mergesort_2(input1, buffer1);
+    mergesort_2(input2, buffer2);
+    buffer
+        .iter_mut()
+        .zip(input1.iter().merge(input2.iter()))
+        .for_each(|(o, i)| *o = *i);
+    input.iter_mut().zip(buffer).for_each(|(o, i)| *o = *i); // write back
 }
