@@ -84,8 +84,8 @@ fn merge_kmerge(c: &mut Criterion) {
  * Split single-threaded in N parts and them merg them
  */
 fn kmerge_n(c: &mut Criterion) {
-    let N = 100000;
-    let v: Vec<u64> = std::iter::repeat_with(rand::random).take(N).collect();
+    let n = 100000;
+    let v: Vec<u64> = std::iter::repeat_with(rand::random).take(n).collect();
     let mut buffer: Vec<u64> = std::iter::repeat_with(Default::default)
         .take(v.len())
         .collect();
@@ -108,11 +108,26 @@ fn kmerge_n(c: &mut Criterion) {
 }
 
 fn sort_bench(c: &mut Criterion) {
-    let N = 10000;
-    let v: Vec<u64> = std::iter::repeat_with(rand::random).take(N).collect();
+    let n = 30000;
+    let v: Vec<u64> = std::iter::repeat_with(rand::random).take(n).collect();
     let checksum: u64 = v.iter().sum();
 
     let mut group = c.benchmark_group("mergesort_efficient");
+
+    group.bench_function("2", |b| {
+        b.iter_batched(
+            || v.clone(),
+            |mut v| {
+                let mut buffer: Vec<u64> = std::iter::repeat_with(Default::default)
+                    .take(v.len())
+                    .collect();
+                mergesort_2_stop(black_box(&mut v), &mut buffer, 2);
+                assert_eq!(checksum, v.iter().sum::<u64>());
+                assert!(v.windows(2).all(|w| w[0] <= w[1]));
+            },
+            BatchSize::SmallInput,
+        )
+    });
     group.bench_function("std", |b| {
         b.iter_batched(
             || v.clone(),
@@ -124,24 +139,11 @@ fn sort_bench(c: &mut Criterion) {
             BatchSize::SmallInput,
         )
     });
-    group.bench_function("2", |b| {
-        b.iter_batched(
-            || v.clone(),
-            |mut v| {
-                let mut buffer: Vec<u64> = std::iter::repeat_with(Default::default)
-                    .take(v.len())
-                    .collect();
-                mergesort_2_stop(black_box(&mut v), &mut buffer);
-                assert_eq!(checksum, v.iter().sum::<u64>());
-                assert!(v.windows(2).all(|w| w[0] <= w[1]));
-            },
-            BatchSize::SmallInput,
-        )
-    });
+    
 }
 
 //criterion_group!(benches, merge_kmerge);
-criterion_group!(benches, mergesort_n_bench);
-//criterion_group!(benches, sort_bench);
+//criterion_group!(benches, mergesort_n_bench);
+criterion_group!(benches, sort_bench);
 // criterion_group!(benches, parallel_merge_n_bench, merge_n_bench);
 criterion_main!(benches);
