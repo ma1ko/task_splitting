@@ -3,8 +3,6 @@ use itertools::{kmerge, merge};
 use rayon::prelude::*;
 use rayon::{join, join_context, ThreadPool, ThreadPoolBuilder};
 
-
-
 pub fn merge_n(input: &mut [u64], buffer: &mut [u64], n: usize) {
     let chunksize = input.len() / n;
     let inputs: Vec<&mut [u64]> = input.chunks_mut(chunksize).collect();
@@ -13,7 +11,6 @@ pub fn merge_n(input: &mut [u64], buffer: &mut [u64], n: usize) {
         .zip(kmerge(inputs))
         .for_each(|(o, i)| *o = *i);
     input.iter_mut().zip(buffer).for_each(|(o, i)| *o = *i);
-
 }
 
 pub fn merge_2(input: &mut [u64], buffer: &mut [u64]) {
@@ -72,7 +69,7 @@ pub fn mergesort_2(input: &mut [u64], buffer: &mut [u64]) {
     input.iter_mut().zip(buffer).for_each(|(o, i)| *o = *i); // write back
 }
 pub fn mergesort_2_stop(input: &mut [u64], buffer: &mut [u64], level: u64) {
-    if level == 0{
+    if level == 0 {
         input.sort();
         return;
     }
@@ -80,11 +77,34 @@ pub fn mergesort_2_stop(input: &mut [u64], buffer: &mut [u64], level: u64) {
     let (buffer1, buffer2) = buffer.split_at_mut(buffer.len() / 2);
     mergesort_2_stop(buffer1, input1, level - 1);
     mergesort_2_stop(buffer2, input2, level - 1);
-   input 
+    input
         .iter_mut()
         .zip(buffer1.iter().merge(buffer2.iter()))
         .for_each(|(o, i)| *o = *i);
 }
+pub fn mergesort_n_stop(input: &mut [u64], buffer: &mut [u64], split: usize, level: u64) {
+    if level == 0 {
+        input.sort();
+        return;
+    }
 
+    let mut chunksize = input.len() / split;
 
+    if chunksize == 0 || input.len() % split != 0 {
+        // if we have less elements than tasks (chunsize == 0)
+        // just use a few less tasks
+        // if we can't evently divide input on tasks, we give the first tasks a bit more
+        chunksize = chunksize + 1;
+    }
 
+    let mut inputs: Vec<&mut [u64]> = input.chunks_mut(chunksize).collect();
+    let buffers: Vec<&mut [u64]> = buffer.chunks_mut(chunksize).collect();
+    inputs.par_iter_mut().zip(buffers).for_each(|(i, b)| {
+        mergesort_n(i, b, split);
+    });
+    buffer
+        .iter_mut()
+        .zip(kmerge(inputs))
+        .for_each(|(o, i)| *o = *i);
+    input.iter_mut().zip(buffer).for_each(|(o, i)| *o = *i); // write back
+}

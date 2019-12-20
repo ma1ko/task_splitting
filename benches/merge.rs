@@ -46,7 +46,7 @@ fn mergesort_n_bench(c: &mut Criterion) {
             );
         });
     }
-   
+
     group.finish();
 }
 
@@ -108,7 +108,7 @@ fn kmerge_n(c: &mut Criterion) {
 }
 
 fn sort_bench(c: &mut Criterion) {
-    let n = 30000;
+    let n = 50000;
     let v: Vec<u64> = std::iter::repeat_with(rand::random).take(n).collect();
     let checksum: u64 = v.iter().sum();
 
@@ -139,11 +139,46 @@ fn sort_bench(c: &mut Criterion) {
             BatchSize::SmallInput,
         )
     });
-    
+}
+fn mergesort_par_n_bench(c: &mut Criterion) {
+    const N: usize = 50000;
+
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(6)
+        .build()
+        .expect("failed creating pool");
+
+    let v: Vec<u64> = std::iter::repeat_with(rand::random)
+        .take(N)
+        .map(|x: u64| x % 10)
+        .collect();
+    let buffer: Vec<u64> = std::iter::repeat_with(Default::default)
+        .take(v.len())
+        .collect();
+    let checksum: u64 = v.iter().sum();
+    let mut group = c.benchmark_group("mergesort_par_n");
+    for size in [1, 2, 3, 4, 5, 6, 7, 8].iter() {
+        let levels = (6 as f64).log(*size as f64).ceil() as u64;
+        println!("Need {} recursive splits for {}", levels, size);
+        group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
+            b.iter_batched(
+                || (v.clone(), buffer.clone()),
+                |(mut v, mut buffer)| {
+                    pool.install(|| mergesort_n_stop(black_box(&mut v), &mut buffer, size, levels));
+                    //assert_eq!(checksum, v.iter().sum::<u64>());
+                    //assert!(v.windows(2).all(|w| w[0] <= w[1]));
+                    v
+                },
+                BatchSize::SmallInput,
+            );
+        });
+    }
+
+    group.finish();
 }
 
 //criterion_group!(benches, merge_kmerge);
 //criterion_group!(benches, mergesort_n_bench);
-criterion_group!(benches, sort_bench);
+criterion_group!(benches, mergesort_par_n_bench);
 // criterion_group!(benches, parallel_merge_n_bench, merge_n_bench);
 criterion_main!(benches);
