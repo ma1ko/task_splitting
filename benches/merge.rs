@@ -1,4 +1,4 @@
-extern crate rayon_logs as rayon;
+// extern crate rayon_logs as rayon;
 use criterion::*;
 use itertools::kmerge;
 use rayon::prelude::*;
@@ -9,7 +9,7 @@ use task_splitting::*;
  * Split multithreaded (also calculate how many splits are required
  */
 fn mergesort_n_bench(c: &mut Criterion) {
-    const N: usize = 19683;
+    const N: usize = 20000;
     /*
     let split = 4;
     let pool = ThreadPoolBuilder::new()
@@ -39,8 +39,8 @@ fn mergesort_n_bench(c: &mut Criterion) {
                     } else {
                         mergesort_n(black_box(&mut v), &mut buffer, size);
                     }
-                    // assert_eq!(checksum, v.iter().sum::<u64>());
-                    // assert!(v.windows(2).all(|w| w[0] <= w[1]));
+                    assert_eq!(checksum, v.iter().sum::<u64>());
+                    assert!(v.windows(2).all(|w| w[0] <= w[1]));
                     v
                 },
                 BatchSize::SmallInput,
@@ -51,7 +51,7 @@ fn mergesort_n_bench(c: &mut Criterion) {
     group.finish();
 }
 
-fn merge_kmerge(c: &mut Criterion) {
+fn merge_kmerge_bench(c: &mut Criterion) {
     let N = 100000;
     let v: Vec<u64> = std::iter::repeat_with(rand::random).take(N).collect();
     let mut buffer: Vec<u64> = std::iter::repeat_with(Default::default)
@@ -63,7 +63,7 @@ fn merge_kmerge(c: &mut Criterion) {
             || v.clone(),
             |mut v| {
                 merge_n(black_box(&mut v), &mut buffer, 2);
-                // assert_eq!(checksum, v.iter().sum::<u64>());
+                assert_eq!(checksum, v.iter().sum::<u64>());
                 v
             },
             BatchSize::SmallInput,
@@ -74,7 +74,7 @@ fn merge_kmerge(c: &mut Criterion) {
             || v.clone(),
             |mut v| {
                 merge_2(black_box(&mut v), &mut buffer);
-                // assert_eq!(checksum, v.iter().sum::<u64>());
+                assert_eq!(checksum, v.iter().sum::<u64>());
                 v
             },
             BatchSize::SmallInput,
@@ -84,7 +84,7 @@ fn merge_kmerge(c: &mut Criterion) {
 /*
  * Split single-threaded in N parts and them merg them
  */
-fn kmerge_n(c: &mut Criterion) {
+fn kmerge_n_bench(c: &mut Criterion) {
     let n = 100000;
     let v: Vec<u64> = std::iter::repeat_with(rand::random).take(n).collect();
     let mut buffer: Vec<u64> = std::iter::repeat_with(Default::default)
@@ -164,12 +164,11 @@ fn mergesort_par_n_bench(c: &mut Criterion) {
                 || (v.clone(), buffer.clone()),
                 |(mut v, mut buffer)| {
                     pool.install(|| {
-                     if size == 1 {
-                             parallel_mergesort_2(black_box(&mut v), &mut buffer, 2);
-                         }
-                    else {
-                             parallel_mergesort_n(black_box(&mut v), &mut buffer, size, 2);
-                    }
+                        if size == 1 {
+                            parallel_mergesort_2(black_box(&mut v), &mut buffer, 2);
+                        } else {
+                            parallel_mergesort_n(black_box(&mut v), &mut buffer, size, 2);
+                        }
                     });
                     assert_eq!(checksum, v.iter().sum::<u64>());
                     assert!(v.windows(2).all(|w| w[0] <= w[1]));
@@ -182,9 +181,9 @@ fn mergesort_par_n_bench(c: &mut Criterion) {
 
     group.finish();
 }
-fn logs (c: &mut Criterion) {
-    use rayon_logs::*;
+fn logs(c: &mut Criterion) {
     use rayon_logs::prelude::*;
+    use rayon_logs::*;
     const N: usize = 20000000;
 
     let v: Vec<u64> = std::iter::repeat_with(rand::random)
@@ -196,30 +195,35 @@ fn logs (c: &mut Criterion) {
         .collect();
     let checksum: u64 = v.iter().sum();
     for size in [1, 2, 3, 4].iter() {
-    let pool = rayon_logs::ThreadPoolBuilder::new()
-        .num_threads(3)
-        .build()
-        .expect("failed creating pool");
-                let mut v = v.clone();
-                let mut buffer = buffer.clone();
-                let (_,log ) = pool.logging_install(|| {
-                     if *size == 1 {
-                             parallel_mergesort_2(black_box(&mut v), &mut buffer, 2);
-                         }
-                    else {
-                             parallel_mergesort_n(black_box(&mut v), &mut buffer, *size, 2);
-                    }
-                    });
-                    assert_eq!(checksum, v.iter().sum::<u64>());
-                    assert!(v.windows(2).all(|w| w[0] <= w[1]));
-                    log.save_svg(format!("merge_sort_{}.svg", size)).expect("failed saving svg");
+        let pool = rayon_logs::ThreadPoolBuilder::new()
+            .num_threads(3)
+            .build()
+            .expect("failed creating pool");
+        let mut v = v.clone();
+        let mut buffer = buffer.clone();
+        let (_, log) = pool.logging_install(|| {
+            if *size == 1 {
+                parallel_mergesort_2(black_box(&mut v), &mut buffer, 2);
+            } else {
+                parallel_mergesort_n(black_box(&mut v), &mut buffer, *size, 2);
+            }
+        });
+        assert_eq!(checksum, v.iter().sum::<u64>());
+        assert!(v.windows(2).all(|w| w[0] <= w[1]));
+        //log.save_svg(format!("merge_sort_{}.svg", size))
+        //    .expect("failed saving svg");
     }
-
 }
 
-//criterion_group!(benches, merge_kmerge);
+criterion_group!(
+    benches,
+    merge_kmerge_bench,
+    kmerge_n_bench,
+    mergesort_n_bench,
+    mergesort_par_n_bench
+);
 //criterion_group!(benches, mergesort_n_bench);
-criterion_group!(benches, mergesort_par_n_bench);
+// criterion_group!(benches, mergesort_par_n_bench);
 // criterion_group!(benches, logs);
 // criterion_group!(benches, parallel_merge_n_bench, merge_n_bench);
 criterion_main!(benches);

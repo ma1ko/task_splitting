@@ -1,4 +1,3 @@
-
 // extern crate rayon_logs as rayon;
 use itertools::Itertools;
 use itertools::{kmerge, merge};
@@ -85,12 +84,17 @@ pub fn mergesort_n_stop(input: &mut [u64], buffer: &mut [u64], split: usize, lev
     let mut inputs: Vec<&mut [u64]> = input.chunks_mut(chunksize).collect();
     let buffers: Vec<&mut [u64]> = buffer.chunks_mut(chunksize).collect();
     // inputs.iter().zip(buffers).collect().par_iter();
-    
-    inputs.iter_mut().zip(buffers).collect::<Vec<(&mut &mut [u64], &mut [u64])>>().par_iter_mut().for_each(|(i, b)| {
-    //inputs.par_iter_mut().zip(buffers).for_each(|(i, b)| {
-        mergesort_n(i, b, split);
-    });
-    
+
+    inputs
+        .iter_mut()
+        .zip(buffers)
+        .collect::<Vec<(&mut &mut [u64], &mut [u64])>>()
+        .par_iter_mut()
+        .for_each(|(i, b)| {
+            //inputs.par_iter_mut().zip(buffers).for_each(|(i, b)| {
+            mergesort_n(i, b, split);
+        });
+
     buffer
         .iter_mut()
         .zip(kmerge(inputs))
@@ -111,8 +115,6 @@ pub fn mergesort_2_stop(input: &mut [u64], buffer: &mut [u64], level: u64) {
         .iter_mut()
         .zip(buffer1.iter().merge(buffer2.iter()))
         .for_each(|(o, i)| *o = *i);
-
-
 }
 pub fn parallel_mergesort_2(input: &mut [u64], buffer: &mut [u64], level: u64) {
     if level == 0 {
@@ -124,18 +126,15 @@ pub fn parallel_mergesort_2(input: &mut [u64], buffer: &mut [u64], level: u64) {
     join_context(
         |_| parallel_mergesort_2(input1, buffer1, level - 1),
         |c| {
-                let level = if c.migrated() { 2 }
-                          else { level - 1 };
+            let level = if c.migrated() { 2 } else { level - 1 };
             parallel_mergesort_2(input2, buffer2, level);
-        }
+        },
     );
     buffer
         .iter_mut()
         .zip(input1.iter().merge(input2.iter()))
         .for_each(|(o, i)| *o = *i);
     input.iter_mut().zip(buffer).for_each(|(o, i)| *o = *i); // write back
-
-
 }
 pub fn parallel_mergesort_n(input: &mut [u64], buffer: &mut [u64], split: usize, level: u64) {
     if level == 0 {
@@ -155,18 +154,22 @@ pub fn parallel_mergesort_n(input: &mut [u64], buffer: &mut [u64], split: usize,
     let mut inputs: Vec<&mut [u64]> = input.chunks_mut(chunksize).collect();
     let buffers: Vec<&mut [u64]> = buffer.chunks_mut(chunksize).collect();
     /*
-    inputs.par_iter_mut().zip(buffers).for_each(|(i, b)| {
-        parallel_mergesort_n(i, b, split, level - 1);
-    });
-   */ 
+     inputs.par_iter_mut().zip(buffers).for_each(|(i, b)| {
+         parallel_mergesort_n(i, b, split, level - 1);
+     });
+    */
     // join can only do 2 tasks, we need n. par_iter can't check if a process is migrated, so we do
     // that manually with current_thread_index()
     let idx = rayon::current_thread_index().unwrap();
     inputs.par_iter_mut().zip(buffers).for_each(|(i, b)| {
-        let level = if rayon::current_thread_index().unwrap() == idx {level - 1} else {2};
-            parallel_mergesort_n(i, b, split, level);
+        let level = if rayon::current_thread_index().unwrap() == idx {
+            level - 1
+        } else {
+            2
+        };
+        parallel_mergesort_n(i, b, split, level);
     });
- 
+
     buffer
         .iter_mut()
         .zip(kmerge(inputs))
