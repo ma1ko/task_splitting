@@ -1,0 +1,11 @@
+group,function,value,throughput_num,throughput_type,sample_measured_value,unit,iteration_count
+mergesort_par_n,,0,,,77767396.0,ns,6
+mergesort_par_n,,0,,,154921099.0,ns,12
+mergesort_par_n,,0,,,231539630.0,ns,18
+mergesort_par_n,,0,,,309324181.0,ns,24
+mergesort_par_n,,0,,,390167374.0,ns,30
+mergesort_par_n,,0,,,467615267.0,ns,36
+mergesort_par_n,,0,,,545788137.0,ns,42
+mergesort_par_n,,0,,,623669106.0,ns,48
+mergesort_par_n,,0,,,701958340.0,ns,54
+mergesort_par_n,,0,,,779813202.0,ns,60

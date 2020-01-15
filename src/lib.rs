@@ -1,4 +1,4 @@
-// extern crate rayon_logs as rayon;
+extern crate rayon_logs;
 use itertools::Itertools;
 use itertools::{kmerge, merge};
 use rayon::prelude::*;
@@ -123,7 +123,7 @@ pub fn parallel_mergesort_2(input: &mut [u64], buffer: &mut [u64], level: u64) {
     }
     let (input1, input2) = input.split_at_mut(input.len() / 2);
     let (buffer1, buffer2) = buffer.split_at_mut(buffer.len() / 2);
-    join_context(
+    rayon_logs::join_context(
         |_| parallel_mergesort_2(input1, buffer1, level - 1),
         |c| {
             let level = if c.migrated() { 2 } else { level - 1 };
@@ -161,7 +161,7 @@ pub fn parallel_mergesort_n(input: &mut [u64], buffer: &mut [u64], split: usize,
     // join can only do 2 tasks, we need n. par_iter can't check if a process is migrated, so we do
     // that manually with current_thread_index()
     let idx = rayon::current_thread_index().unwrap();
-    inputs.par_iter_mut().zip(buffers).for_each(|(i, b)| {
+    rayon_logs::Logged::new(inputs.par_iter_mut().zip(buffers)).for_each(|(i, b)| {
         let level = if rayon::current_thread_index().unwrap() == idx {
             level - 1
         } else {
@@ -173,6 +173,25 @@ pub fn parallel_mergesort_n(input: &mut [u64], buffer: &mut [u64], split: usize,
     buffer
         .iter_mut()
         .zip(kmerge(inputs))
+        .for_each(|(o, i)| *o = *i);
+    input.iter_mut().zip(buffer).for_each(|(o, i)| *o = *i); // write back
+}
+pub fn parallel_mergesort_rayon(input: &mut [u64], buffer: &mut [u64]) {
+    // basically how the paralallism is implemented in rayon. Just use chunks of 2000 elements.
+    // They also have parallel merging and some more stuff,
+    if input.len() <= 2000 {
+        input.sort();
+        return;
+    }
+    let (input1, input2) = input.split_at_mut(input.len() / 2);
+    let (buffer1, buffer2) = buffer.split_at_mut(buffer.len() / 2);
+    rayon_logs::join(
+        || parallel_mergesort_rayon(input1, buffer1),
+        || parallel_mergesort_rayon(input2, buffer2),
+    );
+    buffer
+        .iter_mut()
+        .zip(input1.iter().merge(input2.iter()))
         .for_each(|(o, i)| *o = *i);
     input.iter_mut().zip(buffer).for_each(|(o, i)| *o = *i); // write back
 }

@@ -52,7 +52,7 @@ fn mergesort_n_bench(c: &mut Criterion) {
 }
 
 fn merge_kmerge_bench(c: &mut Criterion) {
-    let N = 100000;
+    let N = 500000;
     let v: Vec<u64> = std::iter::repeat_with(rand::random).take(N).collect();
     let mut buffer: Vec<u64> = std::iter::repeat_with(Default::default)
         .take(v.len())
@@ -142,12 +142,7 @@ fn sort_bench(c: &mut Criterion) {
     });
 }
 fn mergesort_par_n_bench(c: &mut Criterion) {
-    const N: usize = 50000;
-
-    let pool = ThreadPoolBuilder::new()
-        .num_threads(3)
-        .build()
-        .expect("failed creating pool");
+    const N: usize = 500000;
 
     let v: Vec<u64> = std::iter::repeat_with(rand::random)
         .take(N)
@@ -158,13 +153,21 @@ fn mergesort_par_n_bench(c: &mut Criterion) {
         .collect();
     let checksum: u64 = v.iter().sum();
     let mut group = c.benchmark_group("mergesort_par_n");
-    for size in [1, 2, 3, 4, 5, 6, 7, 8].iter() {
+    group.sample_size(10);
+    for size in [0, 1, 2, 3, 4, 5, 6, 7, 8].iter() {
+        let pool = ThreadPoolBuilder::new()
+            .num_threads(3)
+            .build()
+            .expect("failed creating pool");
+
         group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
             b.iter_batched(
                 || (v.clone(), buffer.clone()),
                 |(mut v, mut buffer)| {
                     pool.install(|| {
-                        if size == 1 {
+                        if size == 0 {
+                            parallel_mergesort_rayon(black_box(&mut v), &mut buffer);
+                        } else if size == 1 {
                             parallel_mergesort_2(black_box(&mut v), &mut buffer, 2);
                         } else {
                             parallel_mergesort_n(black_box(&mut v), &mut buffer, size, 2);
@@ -182,9 +185,7 @@ fn mergesort_par_n_bench(c: &mut Criterion) {
     group.finish();
 }
 fn logs(c: &mut Criterion) {
-    use rayon_logs::prelude::*;
-    use rayon_logs::*;
-    const N: usize = 20000000;
+    const N: usize = 50000000;
 
     let v: Vec<u64> = std::iter::repeat_with(rand::random)
         .take(N)
@@ -194,7 +195,7 @@ fn logs(c: &mut Criterion) {
         .take(v.len())
         .collect();
     let checksum: u64 = v.iter().sum();
-    for size in [1, 2, 3, 4].iter() {
+    for size in [0, 1, 2, 3, 4, 5, 6, 7, 8].iter() {
         let pool = rayon_logs::ThreadPoolBuilder::new()
             .num_threads(3)
             .build()
@@ -202,7 +203,9 @@ fn logs(c: &mut Criterion) {
         let mut v = v.clone();
         let mut buffer = buffer.clone();
         let (_, log) = pool.logging_install(|| {
-            if *size == 1 {
+            if *size == 0 {
+                parallel_mergesort_rayon(black_box(&mut v), &mut buffer);
+            } else if *size == 1 {
                 parallel_mergesort_2(black_box(&mut v), &mut buffer, 2);
             } else {
                 parallel_mergesort_n(black_box(&mut v), &mut buffer, *size, 2);
@@ -210,11 +213,12 @@ fn logs(c: &mut Criterion) {
         });
         assert_eq!(checksum, v.iter().sum::<u64>());
         assert!(v.windows(2).all(|w| w[0] <= w[1]));
-        //log.save_svg(format!("merge_sort_{}.svg", size))
-        //    .expect("failed saving svg");
+        log.save_svg(format!("merge_sort_{}.svg", size))
+            .expect("failed saving svg");
     }
 }
 
+/*
 criterion_group!(
     benches,
     merge_kmerge_bench,
@@ -222,8 +226,10 @@ criterion_group!(
     mergesort_n_bench,
     mergesort_par_n_bench
 );
+*/
 //criterion_group!(benches, mergesort_n_bench);
+// criterion_group!(benches, merge_kmerge_bench);
 // criterion_group!(benches, mergesort_par_n_bench);
 // criterion_group!(benches, logs);
-// criterion_group!(benches, parallel_merge_n_bench, merge_n_bench);
+criterion_group!(benches, mergesort_par_n_bench); //, merge_n_bench);
 criterion_main!(benches);
